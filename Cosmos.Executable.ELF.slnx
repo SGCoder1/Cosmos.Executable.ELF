@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="Cosmos.Executable.ELF/Cosmos.Executable.ELF.csproj" />
+  <Project Path="ElfTester/ElfTester.csproj" Id="96ae3179-3892-4e51-b7ac-5c381cef6084" />
 </Solution>
