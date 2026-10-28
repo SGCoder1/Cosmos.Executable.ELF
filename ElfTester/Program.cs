@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using Cosmos.Executable.ELF;
+using System.Runtime.InteropServices;
 
 namespace ElfTester
 {
@@ -7,8 +8,9 @@ namespace ElfTester
         static void Main(string[] args)
         {
             Console.WriteLine("Hello, World!");
-            Console.WriteLine(Architecture.X86);
-            Console.WriteLine(Architecture.LoongArch64);
+            ElfReader reader = new(File.OpenRead("TestElf-AA64"));
+            reader.Execute();
+            reader.Dispose();
         }
     }
 }

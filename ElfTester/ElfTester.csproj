@@ -7,4 +7,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Cosmos.Executable.ELF\Cosmos.Executable.ELF.csproj" />
+  </ItemGroup>
+
 </Project>

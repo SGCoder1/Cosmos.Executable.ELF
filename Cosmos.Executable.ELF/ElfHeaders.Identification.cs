@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Text;
+﻿using System.Runtime.InteropServices;
 
 namespace Cosmos.Executable.ELF
 {
@@ -46,7 +43,7 @@ namespace Cosmos.Executable.ELF
         GnuLinux, // GNU extensions, keep if supporting it
     }
 
-    internal enum ElfType : ushort
+    internal enum ImageType : ushort
     {
         None,
         RelocatableObject,

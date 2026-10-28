@@ -26,6 +26,12 @@ namespace Cosmos.Executable.ELF
                 throw null!;
             }
 
+            switch (identification.align)
+            {
+                case ElfDataAlignment.MostSignificant: m_switchEndianess = BitConverter.IsLittleEndian; break;
+                case ElfDataAlignment.LeastSignificant: m_switchEndianess = !BitConverter.IsLittleEndian; break;
+            }
+
             if (identification.arch == ElfArchitectureClass.Mode32Bit)
             {
                 LoadAs32Bit();
@@ -43,7 +49,7 @@ namespace Cosmos.Executable.ELF
 
             if (!IsCompatible(GetCurrentArchitecture(), (ElfArchitecture)header.machine))
             {
-                ExceptionHelpers.ThrowUnsupportedArchitecture(RuntimeInformation.OSArchitecture, true);
+                ExceptionHelpers.ThrowUnloadbleArchitecture((ElfArchitecture)header.machine);
                 throw null!;
             }
 
@@ -54,20 +60,69 @@ namespace Cosmos.Executable.ELF
         {
             m_reader.BaseStream.Position = 0;
             Elf64Header header = m_reader.Read<Elf64Header>();
+            if (m_switchEndianess)
+            {
+                header.ReverseEndianess();
+            }
 
             if (!IsCompatible(GetCurrentArchitecture(), (ElfArchitecture)header.machine))
             {
-                ExceptionHelpers.ThrowUnsupportedArchitecture(RuntimeInformation.OSArchitecture, true);
+                ExceptionHelpers.ThrowUnloadbleArchitecture((ElfArchitecture)header.machine);
+                throw null!;
+            }
+
+            ImageType imgType = (ImageType)header.elfType;
+            switch (imgType)
+            {
+                case ImageType.RelocatableObject:
+                case ImageType.CoreDump:
+                    ExceptionHelpers.ThrowNonExecutableImage();
+                    throw null!;
+            }
+
+            int programHeaderLength = header.programHeaderCount;
+            if (programHeaderLength == 0 && header.entryPointRVA != 0)
+            {
+                ExceptionHelpers.ThrowBadImage(m_path);
                 throw null!;
             }
 
             // TODO: Implement the 64-bit side for the entire header.
-            m_reader.BaseStream.Position = header.programHeaderOffset;
-            for (int i = 0; i < header.programHeaderCount; i++)
+
+            Elf64ProgramHeader[] progs = new Elf64ProgramHeader[programHeaderLength];
+
+            m_reader.BaseStream.Position = (long)header.programHeaderOffset;
+            for (int i = 0; i < programHeaderLength; i++)
             {
-                Elf32ProgramHeader progHeader = m_reader.Read<Elf32ProgramHeader>();
-                
+                // Buffer first before parsing. We're going to be seeking again.
+                progs[i] = m_reader.Read<Elf64ProgramHeader>();
             }
+
+            for (int i = 0; i < programHeaderLength; i++)
+            {
+                Elf64ProgramHeader progHeader = progs[i];
+                m_reader.BaseStream.Position = (long)progHeader.fileOffset;
+
+                ProgramHeaderFlags flags = (ProgramHeaderFlags)progHeader.flags;
+                ProgramHeaderType type = (ProgramHeaderType)progHeader.type;
+
+                if (flags == ProgramHeaderFlags.Invalid)
+                {
+                    ExceptionHelpers.ThrowBadImage(m_path);
+                    throw null!;
+                }
+
+                if (type == ProgramHeaderType.Loadable && (flags & ProgramHeaderFlags.Executable) != 0)
+                {
+                    // Found the .text section :)
+                    byte[] codeBytesToCopy = m_reader.ReadBytes((int)progHeader.fileSize);
+                    nint codeBlock = Marshal.AllocHGlobal((int)progHeader.memorySize);
+                    Marshal.Copy(codeBytesToCopy, 0, codeBlock, codeBytesToCopy.Length);
+                    m_codeBlock = codeBlock;
+                }
+            }
+
+            m_entryPointOffset = header.entryPointRVA;
         }
 
         private static ElfArchitecture GetCurrentArchitecture()
@@ -79,7 +134,7 @@ namespace Cosmos.Executable.ELF
                 case Architecture.X64: return ElfArchitecture.x64;
                 case Architecture.Arm: return ElfArchitecture.Arm32;
                 case Architecture.Arm64: return ElfArchitecture.Arm64;
-                default: ExceptionHelpers.ThrowUnsupportedArchitecture(arch, false); throw null!;
+                default: ExceptionHelpers.ThrowUnsupportedArchitecture(arch); throw null!;
             }
         }
 
