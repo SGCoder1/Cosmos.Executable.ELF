@@ -6,3 +6,8 @@ Nothing yet, needs more implementing
 
 ## Getting Started
 Nothing yet, needs more implementing
+
+## Limitations
++ This library is made before userland exists (see the [Userland Pull Request](https://github.com/CosmosOS/Cosmos/issues/3350) for more info).
+  All programs will be executed on the highest privilege.  
++ This project is currently paused as the underlying COSMOS API does not have the necessary properties implemented to continue.
