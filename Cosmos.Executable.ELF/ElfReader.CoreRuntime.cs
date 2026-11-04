@@ -71,21 +71,14 @@ namespace Cosmos.Executable.ELF
                 throw null!;
             }
 
-            ImageType imgType = (ImageType)header.elfType;
-            switch (imgType)
-            {
-                case ImageType.RelocatableObject:
-                case ImageType.CoreDump:
-                    ExceptionHelpers.ThrowNonExecutableImage();
-                    throw null!;
-            }
-
             int programHeaderLength = header.programHeaderCount;
             if (programHeaderLength == 0 && header.entryPointRVA != 0)
             {
                 ExceptionHelpers.ThrowBadImage(m_path);
                 throw null!;
             }
+            
+            m_executable = (ImageType)header.elfType == ImageType.Executable;
 
             // TODO: Implement the 64-bit side for the entire header.
 
@@ -119,6 +112,7 @@ namespace Cosmos.Executable.ELF
                     nint codeBlock = Marshal.AllocHGlobal((int)progHeader.memorySize);
                     Marshal.Copy(codeBytesToCopy, 0, codeBlock, codeBytesToCopy.Length);
                     m_codeBlock = codeBlock;
+                    m_executable = true;
                 }
             }
 
@@ -143,6 +137,11 @@ namespace Cosmos.Executable.ELF
             if (current == ElfArchitecture.x86_64)
             {
                 return archToRun is ElfArchitecture.x86 or ElfArchitecture.x64 or ElfArchitecture.x86_64;
+            }
+
+            if (current is ElfArchitecture.x64 or ElfArchitecture.x86)
+            {
+                return archToRun == ElfArchitecture.x86_64 || current == archToRun;
             }
 
             return current == archToRun;
