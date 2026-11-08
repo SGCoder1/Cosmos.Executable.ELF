@@ -1,0 +1,7 @@
+<Project>
+	<ItemGroup>
+		<PlugReference Include="Cosmos.Kernel.Plugs" />
+		<GCCProject Include="$(MSBuildThisFileDirectory)..\native\include"/>
+		<GCCProject Include="$(MSBuildThisFileDirectory)..\native\impl"/>
+	</ItemGroup>
+</Project>

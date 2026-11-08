@@ -1,0 +1,51 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Clang: build active file",
+			"type": "shell",
+			"command": "clang",
+			"args": [
+				"-v",
+				"-c",
+				"-fdiagnostics-color=always",
+				"-Wall",
+				"-Wextra",
+				"-Wpedantic",
+				"--target=x86_64-elf",
+				"-DARCH_X64",
+				"-m64",
+				"-fuse-ld=lld",
+				"-mcmodel=kernel",
+				"-fno-PIC",
+				"-ffreestanding",
+				"-g",
+				"${file}",
+				"-o",
+				"${fileDirname}/${fileBasenameNoExtension}.o"
+			],
+			"group": {
+				"kind": "build",
+			},
+			"problemMatcher": "$gcc"
+		},
+		{
+			"label": "LLD: link active file",
+			"type": "shell",
+			"command": "ld.lld",
+			"dependsOn": "Clang: build active file",
+			"args": [
+				"-nostdlib",
+				"-static",
+				"-z max-page-size=0x1000",
+				"-o test.elf",
+				"-e _start",
+				"${fileDirnameBasename}/${fileBasenameNoExtension}.o"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		}
+	]
+}

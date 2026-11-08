@@ -3,19 +3,41 @@ using System.Runtime.InteropServices;
 
 namespace Cosmos.Executable.ELF
 {
-    public sealed partial class ElfReader : IDisposable
+    public sealed unsafe partial class ElfReader : IDisposable
     {
         private bool m_executable;
         private bool m_switchEndianess;
         private readonly BinaryReader m_reader;
         private readonly string? m_path;
         private ulong m_entryPointOffset;
-        
+        private static ElfReader? sm_exec;
+
+        // Stored argc and argv
+        private char** m_lastArgv;
+        private int m_lastArgc;
+
         // Use pointers because T[] might pressure the GC.
-        // Marshal.AllocHGlobal() avoids GC allocation (probably)
-        private nint m_codeBlock;
-        private nint m_dataBlock;
-        private nint m_bssBlock;
+        // TODO: Use NativeMemory.Alloc()
+        private LoadedSection m_code;
+        private LoadedSection m_data;
+        private LoadedSection m_bss;
+
+        public static ElfReader? ExecutingReader => sm_exec;
+
+        public int ArgCount => m_lastArgc;
+
+        public char** ArgValues
+        {
+            get
+            {
+                if (m_lastArgv == null)
+                {
+                    throw new InvalidOperationException("No loaded arg value.");
+                }
+
+                return m_lastArgv;
+            }
+        }
 
         public ElfReader(Stream stream)
         {
@@ -24,13 +46,13 @@ namespace Cosmos.Executable.ELF
             {
                 m_path = fs.Name;
             }
-            
+
             Initialize();
         }
 
         public int Execute() => Execute([]);
-        
-        public unsafe int Execute(string[] args)
+
+        public int Execute(string[] args)
         {
             if (!m_executable)
             {
@@ -38,56 +60,48 @@ namespace Cosmos.Executable.ELF
                 throw null!;
             }
 
-            int passingArgc = args.Length;
-            byte** passingArgv = (byte**)NativeMemory.Alloc((nuint)(passingArgc + 1), (nuint)sizeof(byte*));
-
-            try
+            sm_exec = this;
+            if (m_lastArgv != null)
             {
-                for (int i = 0; i < passingArgc; i++)
-                {
-                    passingArgv[i] = (byte*)Marshal.StringToHGlobalAnsi(args[i]);
-                }
-
-                // Zero out this index because it's not calloc'd
-                passingArgv[passingArgc] = null;
-
-                Log.WriteString($"[Cosmos.Executable.Elf] Executing image...\n");
-
-                delegate* unmanaged[Cdecl]<int, byte**, int> ep = (delegate* unmanaged[Cdecl]<int, byte**, int>)(m_codeBlock + (nint)m_entryPointOffset);
-                int result = ep(passingArgc, passingArgv);
-
-                Log.WriteString($"[Cosmos.Executable.Elf] Executable returned {result}\n");
-                return result;
+                NativeMemory.Free(m_lastArgv);
             }
-            finally
-            {
-                for (int i = 0; i < passingArgc; i++)
-                {
-                    Marshal.FreeHGlobal((nint)passingArgv[i]);
-                }
 
-                NativeMemory.Free(passingArgv);
-            }
+            m_lastArgc = args.Length;
+            m_lastArgv = (char**)NativeMemory.Alloc((nuint)(args.Length + 1), (nuint)sizeof(nint));
+
+            Log.WriteString($"[Cosmos.Executable.Elf] Executing image...\n");
+            InvokeEntryPoint();
+            Log.WriteString($"[Cosmos.Executable.Elf] Executable returned {0}\n");
+
+            NativeMemory.Free(m_lastArgv);
+            return 0;
         }
 
         public void Dispose()
         {
-            if (m_codeBlock != nint.Zero)
+            if (m_code.block != null)
             {
-                Marshal.FreeHGlobal(m_codeBlock);
+                NativeMemory.Free(m_code.block);
             }
-            
-            if (m_dataBlock != nint.Zero)
+
+            if (m_data.block != null)
             {
-                Marshal.FreeHGlobal(m_dataBlock);
+                NativeMemory.Free(m_data.block);
             }
-            
-            if (m_bssBlock != nint.Zero)
+
+            if (m_bss.block != null)
             {
-                Marshal.FreeHGlobal(m_bssBlock);
+                NativeMemory.Free(m_bss.block);
             }
 
             m_reader.Dispose();
         }
     }
+}
+
+internal unsafe struct LoadedSection
+{
+    internal byte* block;
+    internal ulong length;
+    internal ulong rva;
 }
